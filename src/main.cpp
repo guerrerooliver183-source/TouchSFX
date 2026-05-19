@@ -1,6 +1,7 @@
 #include <Geode/Geode.hpp>
 #include <Geode/modify/CCLayer.hpp>
 #include <Geode/utils/web.hpp>
+#include <fstream>
 
 using namespace geode::prelude;
 
@@ -12,6 +13,7 @@ const std::string SFX_URL = "https://www.boomlings.com/database/sfx/" + SFX_FILE
 /**
  * Function to download the SFX if it doesn't exist.
  * Updated for Geode v5 using the new WebRequest API.
+ * The 'into' method is not available in WebFuture, so we handle the response manually.
  */
 void checkAndDownloadSFX() {
     auto sfxPath = Mod::get()->getSaveDir() / SFX_FILE;
@@ -22,16 +24,24 @@ void checkAndDownloadSFX() {
     if (!std::filesystem::exists(sfxPath)) {
         log::info("SFX not found, starting download: {}", SFX_URL);
         
-        // In Geode v5, AsyncWebRequest is replaced by WebRequest
+        // Use WebRequest and listen for the response
         web::WebRequest()
             .get(SFX_URL)
-            .into(sfxPath)
-            .listen([sfxPath](auto result) {
-                if (result && result->ok()) {
-                    log::info("SFX successfully downloaded at: {}", sfxPath.string());
-                    CCFileUtils::get()->addSearchPath(Mod::get()->getSaveDir().string().c_str());
+            .listen([sfxPath](web::WebResponse* response) {
+                if (response && response->ok()) {
+                    auto data = response->data();
+                    std::ofstream file(sfxPath, std::ios::binary);
+                    if (file.is_open()) {
+                        file.write(reinterpret_cast<const char*>(data.data()), data.size());
+                        file.close();
+                        log::info("SFX successfully downloaded and saved at: {}", sfxPath.string());
+                        // Refresh search paths
+                        CCFileUtils::get()->addSearchPath(Mod::get()->getSaveDir().string().c_str());
+                    } else {
+                        log::error("Failed to open file for writing: {}", sfxPath.string());
+                    }
                 } else {
-                    log::error("Failed to download SFX");
+                    log::error("Failed to download SFX: Network error or bad response");
                 }
             });
     } else {
