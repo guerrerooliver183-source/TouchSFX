@@ -1,100 +1,68 @@
-/**
- * Include the Geode headers.
- */
 #include <Geode/Geode.hpp>
+#include <Geode/modify/CCLayer.hpp>
+#include <Geode/utils/web.hpp>
 
-/**
- * Brings cocos2d and all Geode namespaces to the current scope.
- */
 using namespace geode::prelude;
 
+// Nombre del archivo SFX
+const std::string SFX_FILE = "s5939.ogg";
+// URL de descarga de los servidores de RobTop
+const std::string SFX_URL = "https://www.boomlings.com/database/sfx/" + SFX_FILE;
+
 /**
- * `$modify` lets you extend and modify GD's classes.
- * To hook a function in Geode, simply $modify the class
- * and write a new function definition with the signature of
- * the function you want to hook.
- *
- * Here we use the overloaded `$modify` macro to set our own class name,
- * so that we can use it for button callbacks.
- *
- * Notice the header being included, you *must* include the header for
- * the class you are modifying, or you will get a compile error.
- *
- * Another way you could do this is like this:
- *
- * struct MyMenuLayer : Modify<MyMenuLayer, MenuLayer> {};
+ * Función para descargar el SFX si no existe.
+ * Se usa getSaveDir() para que el archivo persista correctamente.
  */
-#include <Geode/modify/MenuLayer.hpp>
-class $modify(MyMenuLayer, MenuLayer) {
-	/**
-	 * Typically classes in GD are initialized using the `init` function, (though not always!),
-	 * so here we use it to add our own button to the bottom menu.
-	 *
-	 * Note that for all hooks, your signature has to *match exactly*,
-	 * `void init()` would not place a hook!
-	*/
-	bool init() {
-		/**
-		 * We call the original init function so that the
-		 * original class is properly initialized.
-		 */
-		if (!MenuLayer::init()) {
-			return false;
-		}
+void checkAndDownloadSFX() {
+    auto sfxPath = Mod::get()->getSaveDir() / SFX_FILE;
+    
+    // Añadimos el directorio de guardado a las rutas de búsqueda de Cocos2d
+    // Esto es crucial para que FMOD pueda encontrar el archivo descargado
+    CCFileUtils::get()->addSearchPath(Mod::get()->getSaveDir().string().c_str());
 
-		/**
-		 * You can use methods from the `geode::log` namespace to log messages to the console,
-		 * being useful for debugging and such. See this page for more info about logging:
-		 * https://docs.geode-sdk.org/tutorials/logging
-		*/
-		log::debug("Hello from my MenuLayer::init hook! This layer has {} children.", this->getChildrenCount());
+    if (!std::filesystem::exists(sfxPath)) {
+        log::info("SFX no encontrado, iniciando descarga: {}", SFX_URL);
+        
+        web::AsyncWebRequest()
+            .fetch(SFX_URL)
+            .into(sfxPath)
+            .then([sfxPath](auto) {
+                log::info("SFX descargado exitosamente en: {}", sfxPath.string());
+                // Forzamos la actualización de las rutas de búsqueda tras la descarga
+                CCFileUtils::get()->addSearchPath(Mod::get()->getSaveDir().string().c_str());
+            })
+            .expect([](std::string const& error) {
+                log::error("Error al descargar SFX: {}", error);
+            });
+    } else {
+        log::info("SFX ya existe en: {}", sfxPath.string());
+    }
+}
 
-		/**
-		 * See this page for more info about buttons
-		 * https://docs.geode-sdk.org/tutorials/buttons
-		*/
-		auto myButton = CCMenuItemSpriteExtra::create(
-			CCSprite::createWithSpriteFrameName("GJ_likeBtn_001.png"),
-			this,
-			/**
-			 * Here we use the name we set earlier for our modify class.
-			*/
-			menu_selector(MyMenuLayer::onMyButton)
-		);
+/**
+ * Se ejecuta cuando el mod se carga.
+ */
+$on_mod(Loaded) {
+    checkAndDownloadSFX();
+}
 
-		/**
-		 * Here we access the `bottom-menu` node by its ID, and add our button to it.
-		 * Node IDs are a Geode feature, see this page for more info about it:
-		 * https://docs.geode-sdk.org/tutorials/nodetree
-		*/
-		auto menu = this->getChildByID("bottom-menu");
-		menu->addChild(myButton);
+/**
+ * Hookeamos CCLayer para detectar toques globales.
+ */
+class $modify(MyCCLayer, CCLayer) {
+    bool ccTouchBegan(CCTouch* touch, CCEvent* event) {
+        // Llamamos a la función original
+        bool result = CCLayer::ccTouchBegan(touch, event);
 
-		/**
-		 * The `_spr` string literal operator just prefixes the string with
-		 * your mod id followed by a slash. This is good practice for setting your own node ids.
-		*/
-		myButton->setID("my-button"_spr);
+        // Verificamos si el mod está habilitado
+        if (Mod::get()->getSettingValue<bool>("enabled")) {
+            // Reproducimos el sonido
+            // FMODAudioEngine maneja automáticamente si el archivo está en el SearchPath
+            FMODAudioEngine::sharedEngine()->playEffect(SFX_FILE);
+            
+            log::debug("Touch detectado, reproduciendo SFX");
+        }
 
-		/**
-		 * We update the layout of the menu to ensure that our button is properly placed.
-		 * This is yet another Geode feature, see this page for more info about it:
-		 * https://docs.geode-sdk.org/tutorials/layouts
-		*/
-		menu->updateLayout();
-
-		/**
-		 * We return `true` to indicate that the class was properly initialized.
-		 */
-		return true;
-	}
-
-	/**
-	 * This is the callback function for the button we created earlier.
-	 * The signature for button callbacks must always be the same,
-	 * return type `void` and taking a `CCObject*`.
-	*/
-	void onMyButton(CCObject*) {
-		FLAlertLayer::create("Geode", "Hello from my custom mod!", "OK")->show();
-	}
+        return result;
+    }
 };

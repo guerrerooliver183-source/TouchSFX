@@ -10,12 +10,16 @@
 	"name": "mod",
 	"version": "v1.0.0-beta.1",
 	"developer": "Legacy",
-	"description": "desc",
+	"description": "Reproduce un sonido al tocar la pantalla en cualquier parte del juego.",
+	"settings": {
+		"enabled": {
+			"name": "Enabled SFX",
+			"description": "Activa o desactiva el sonido al tocar la pantalla.",
+			"type": "bool",
+			"default": true
+		}
+	},
 	"dependencies": {
-		"geode.node-ids": ">=v1.23.3"
-	}
-}
-ependencies": {
 		"geode.node-ids": ">=v1.23.3"
 	}
 }
