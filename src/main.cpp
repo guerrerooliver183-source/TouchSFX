@@ -11,13 +11,12 @@ const std::string SFX_URL = "https://www.boomlings.com/database/sfx/" + SFX_FILE
 
 /**
  * Función para descargar el SFX si no existe.
- * Se usa getSaveDir() para que el archivo persista correctamente.
+ * En Geode v5, se recomienda el uso de getSaveDir para persistencia.
  */
 void checkAndDownloadSFX() {
     auto sfxPath = Mod::get()->getSaveDir() / SFX_FILE;
     
     // Añadimos el directorio de guardado a las rutas de búsqueda de Cocos2d
-    // Esto es crucial para que FMOD pueda encontrar el archivo descargado
     CCFileUtils::get()->addSearchPath(Mod::get()->getSaveDir().string().c_str());
 
     if (!std::filesystem::exists(sfxPath)) {
@@ -28,7 +27,6 @@ void checkAndDownloadSFX() {
             .into(sfxPath)
             .then([sfxPath](auto) {
                 log::info("SFX descargado exitosamente en: {}", sfxPath.string());
-                // Forzamos la actualización de las rutas de búsqueda tras la descarga
                 CCFileUtils::get()->addSearchPath(Mod::get()->getSaveDir().string().c_str());
             })
             .expect([](std::string const& error) {
@@ -40,27 +38,27 @@ void checkAndDownloadSFX() {
 }
 
 /**
- * Se ejecuta cuando el mod se carga.
+ * En Geode v5, $on_mod(Loaded) sigue siendo válido para inicialización.
  */
 $on_mod(Loaded) {
     checkAndDownloadSFX();
 }
 
 /**
- * Hookeamos CCLayer para detectar toques globales.
+ * Hook de CCLayer para detectar toques globales.
+ * Compatible con la estructura de Geode v5.
  */
 class $modify(MyCCLayer, CCLayer) {
     bool ccTouchBegan(CCTouch* touch, CCEvent* event) {
-        // Llamamos a la función original
+        // Llamada a la función original
         bool result = CCLayer::ccTouchBegan(touch, event);
 
-        // Verificamos si el mod está habilitado
+        // Acceso a settings actualizado para Geode v5
         if (Mod::get()->getSettingValue<bool>("enabled")) {
-            // Reproducimos el sonido
-            // FMODAudioEngine maneja automáticamente si el archivo está en el SearchPath
+            // Reproducción de sonido con FMOD
             FMODAudioEngine::sharedEngine()->playEffect(SFX_FILE);
             
-            log::debug("Touch detectado, reproduciendo SFX");
+            log::debug("Touch detectado en Geode v5, reproduciendo SFX");
         }
 
         return result;
