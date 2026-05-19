@@ -11,28 +11,28 @@ const std::string SFX_URL = "https://www.boomlings.com/database/sfx/" + SFX_FILE
 
 /**
  * Function to download the SFX if it doesn't exist.
- * In Geode v5, getSaveDir is recommended for persistence.
+ * Updated for Geode v5 using the new WebRequest API.
  */
 void checkAndDownloadSFX() {
     auto sfxPath = Mod::get()->getSaveDir() / SFX_FILE;
     
     // Add the save directory to Cocos2d search paths
-    // This is crucial for FMOD to find the downloaded file
     CCFileUtils::get()->addSearchPath(Mod::get()->getSaveDir().string().c_str());
 
     if (!std::filesystem::exists(sfxPath)) {
         log::info("SFX not found, starting download: {}", SFX_URL);
         
-        web::AsyncWebRequest()
-            .fetch(SFX_URL)
+        // In Geode v5, AsyncWebRequest is replaced by WebRequest
+        web::WebRequest()
+            .get(SFX_URL)
             .into(sfxPath)
-            .then([sfxPath](auto) {
-                log::info("SFX successfully downloaded at: {}", sfxPath.string());
-                // Force search path update after download
-                CCFileUtils::get()->addSearchPath(Mod::get()->getSaveDir().string().c_str());
-            })
-            .expect([](std::string const& error) {
-                log::error("Error downloading SFX: {}", error);
+            .listen([sfxPath](auto result) {
+                if (result && result->ok()) {
+                    log::info("SFX successfully downloaded at: {}", sfxPath.string());
+                    CCFileUtils::get()->addSearchPath(Mod::get()->getSaveDir().string().c_str());
+                } else {
+                    log::error("Failed to download SFX");
+                }
             });
     } else {
         log::info("SFX already exists at: {}", sfxPath.string());
@@ -58,7 +58,6 @@ class $modify(MyCCLayer, CCLayer) {
         // Check if the mod is enabled in settings
         if (Mod::get()->getSettingValue<bool>("enabled")) {
             // Play sound effect using FMOD
-            // FMODAudioEngine automatically checks SearchPaths
             FMODAudioEngine::sharedEngine()->playEffect(SFX_FILE);
             
             log::debug("Touch detected in Geode v5, playing SFX");
