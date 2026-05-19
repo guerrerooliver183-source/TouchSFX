@@ -13,7 +13,8 @@ const std::string SFX_URL = "https://www.boomlings.com/database/sfx/" + SFX_FILE
 /**
  * Function to download the SFX if it doesn't exist.
  * Updated for Geode v5 using the new WebRequest API.
- * The 'into' method is not available in WebFuture, so we handle the response manually.
+ * The 'listen' method is not available in WebFuture. 
+ * We use 'expect' and 'map' (or similar future handling) to process the result.
  */
 void checkAndDownloadSFX() {
     auto sfxPath = Mod::get()->getSaveDir() / SFX_FILE;
@@ -24,10 +25,15 @@ void checkAndDownloadSFX() {
     if (!std::filesystem::exists(sfxPath)) {
         log::info("SFX not found, starting download: {}", SFX_URL);
         
-        // Use WebRequest and listen for the response
+        // In Geode v5, WebRequest returns a WebFuture which is a specialized Future.
+        // We use the 'map' or 'expect' pattern common in Geode's new async system.
         web::WebRequest()
             .get(SFX_URL)
-            .listen([sfxPath](web::WebResponse* response) {
+            .send()
+            .expect([sfxPath](std::string const& error) {
+                log::error("Failed to download SFX: {}", error);
+            })
+            .map([sfxPath](web::WebResponse* response) {
                 if (response && response->ok()) {
                     auto data = response->data();
                     std::ofstream file(sfxPath, std::ios::binary);
@@ -40,9 +46,8 @@ void checkAndDownloadSFX() {
                     } else {
                         log::error("Failed to open file for writing: {}", sfxPath.string());
                     }
-                } else {
-                    log::error("Failed to download SFX: Network error or bad response");
                 }
+                return response;
             });
     } else {
         log::info("SFX already exists at: {}", sfxPath.string());
