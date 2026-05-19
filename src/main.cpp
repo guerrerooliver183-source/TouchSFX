@@ -1,7 +1,6 @@
 #include <Geode/Geode.hpp>
 #include <Geode/modify/CCLayer.hpp>
 #include <Geode/utils/web.hpp>
-#include <fstream>
 
 using namespace geode::prelude;
 
@@ -12,9 +11,8 @@ const std::string SFX_URL = "https://www.boomlings.com/database/sfx/" + SFX_FILE
 
 /**
  * Function to download the SFX if it doesn't exist.
- * Updated for Geode v5 using the new WebRequest API.
- * The 'listen' method is not available in WebFuture. 
- * We use 'expect' and 'map' (or similar future handling) to process the result.
+ * Updated for Geode v5 using the correct WebRequest API sequence.
+ * In Geode v5, .into() must be called on the WebRequest object BEFORE the method (.get()).
  */
 void checkAndDownloadSFX() {
     auto sfxPath = Mod::get()->getSaveDir() / SFX_FILE;
@@ -25,29 +23,19 @@ void checkAndDownloadSFX() {
     if (!std::filesystem::exists(sfxPath)) {
         log::info("SFX not found, starting download: {}", SFX_URL);
         
-        // In Geode v5, WebRequest returns a WebFuture which is a specialized Future.
-        // We use the 'map' or 'expect' pattern common in Geode's new async system.
+        // Correct Geode v5 WebRequest pattern:
+        // .into() is a method of WebRequest, not WebFuture.
         web::WebRequest()
+            .into(sfxPath)
             .get(SFX_URL)
-            .send()
-            .expect([sfxPath](std::string const& error) {
-                log::error("Failed to download SFX: {}", error);
-            })
-            .map([sfxPath](web::WebResponse* response) {
+            .listen([sfxPath](web::WebResponse* response) {
                 if (response && response->ok()) {
-                    auto data = response->data();
-                    std::ofstream file(sfxPath, std::ios::binary);
-                    if (file.is_open()) {
-                        file.write(reinterpret_cast<const char*>(data.data()), data.size());
-                        file.close();
-                        log::info("SFX successfully downloaded and saved at: {}", sfxPath.string());
-                        // Refresh search paths
-                        CCFileUtils::get()->addSearchPath(Mod::get()->getSaveDir().string().c_str());
-                    } else {
-                        log::error("Failed to open file for writing: {}", sfxPath.string());
-                    }
+                    log::info("SFX successfully downloaded at: {}", sfxPath.string());
+                    // Refresh search paths so FMOD can find it
+                    CCFileUtils::get()->addSearchPath(Mod::get()->getSaveDir().string().c_str());
+                } else {
+                    log::error("Failed to download SFX");
                 }
-                return response;
             });
     } else {
         log::info("SFX already exists at: {}", sfxPath.string());
