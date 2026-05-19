@@ -7,14 +7,14 @@
 		"ios": "2.2081"
 	},
 	"id": "legacy.mod",
-	"name": "mod",
+	"name": "TouchSFX",
 	"version": "v1.0.0-beta.1",
 	"developer": "Legacy",
-	"description": "Reproduce un sonido al tocar la pantalla en cualquier parte del juego.",
+	"description": "Plays a sound effect whenever you touch the screen, anywhere in the game.",
 	"settings": {
 		"enabled": {
 			"name": "Enabled SFX",
-			"description": "Activa o desactiva el sonido al tocar la pantalla.",
+			"description": "Toggle the sound effect on or off when touching the screen.",
 			"type": "bool",
 			"default": true
 		}

@@ -4,61 +4,64 @@
 
 using namespace geode::prelude;
 
-// Nombre del archivo SFX
+// SFX file name
 const std::string SFX_FILE = "s5939.ogg";
-// URL de descarga de los servidores de RobTop
+// Download URL from RobTop's servers
 const std::string SFX_URL = "https://www.boomlings.com/database/sfx/" + SFX_FILE;
 
 /**
- * Función para descargar el SFX si no existe.
- * En Geode v5, se recomienda el uso de getSaveDir para persistencia.
+ * Function to download the SFX if it doesn't exist.
+ * In Geode v5, getSaveDir is recommended for persistence.
  */
 void checkAndDownloadSFX() {
     auto sfxPath = Mod::get()->getSaveDir() / SFX_FILE;
     
-    // Añadimos el directorio de guardado a las rutas de búsqueda de Cocos2d
+    // Add the save directory to Cocos2d search paths
+    // This is crucial for FMOD to find the downloaded file
     CCFileUtils::get()->addSearchPath(Mod::get()->getSaveDir().string().c_str());
 
     if (!std::filesystem::exists(sfxPath)) {
-        log::info("SFX no encontrado, iniciando descarga: {}", SFX_URL);
+        log::info("SFX not found, starting download: {}", SFX_URL);
         
         web::AsyncWebRequest()
             .fetch(SFX_URL)
             .into(sfxPath)
             .then([sfxPath](auto) {
-                log::info("SFX descargado exitosamente en: {}", sfxPath.string());
+                log::info("SFX successfully downloaded at: {}", sfxPath.string());
+                // Force search path update after download
                 CCFileUtils::get()->addSearchPath(Mod::get()->getSaveDir().string().c_str());
             })
             .expect([](std::string const& error) {
-                log::error("Error al descargar SFX: {}", error);
+                log::error("Error downloading SFX: {}", error);
             });
     } else {
-        log::info("SFX ya existe en: {}", sfxPath.string());
+        log::info("SFX already exists at: {}", sfxPath.string());
     }
 }
 
 /**
- * En Geode v5, $on_mod(Loaded) sigue siendo válido para inicialización.
+ * Runs when the mod is loaded.
  */
 $on_mod(Loaded) {
     checkAndDownloadSFX();
 }
 
 /**
- * Hook de CCLayer para detectar toques globales.
- * Compatible con la estructura de Geode v5.
+ * Hook CCLayer to detect global touches.
+ * Compatible with Geode v5 structure.
  */
 class $modify(MyCCLayer, CCLayer) {
     bool ccTouchBegan(CCTouch* touch, CCEvent* event) {
-        // Llamada a la función original
+        // Call the original function
         bool result = CCLayer::ccTouchBegan(touch, event);
 
-        // Acceso a settings actualizado para Geode v5
+        // Check if the mod is enabled in settings
         if (Mod::get()->getSettingValue<bool>("enabled")) {
-            // Reproducción de sonido con FMOD
+            // Play sound effect using FMOD
+            // FMODAudioEngine automatically checks SearchPaths
             FMODAudioEngine::sharedEngine()->playEffect(SFX_FILE);
             
-            log::debug("Touch detectado en Geode v5, reproduciendo SFX");
+            log::debug("Touch detected in Geode v5, playing SFX");
         }
 
         return result;
